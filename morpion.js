@@ -1,7 +1,8 @@
 class Morpion {
 	humanPlayer = 'J1';
 	iaPlayer = 'J2';
-    gameOver = false;
+    turn = 0;
+	gameOver = false;
 
 	gridMap = [
 		[null, null, null],
@@ -106,6 +107,7 @@ class Morpion {
 		}
 
 		this.gridMap[y][x] = player;
+        this.turn += 1;
 		this.getCell(x, y).classList.add(`filled-${player}`);
 		this.checkWinner(player);
 		return true;
@@ -126,13 +128,93 @@ class Morpion {
 			return;
 		}
 
-		let hasPlayed = false;
-		this.gridMap.forEach((line, y) => {
-			line.forEach((cell, x) => {
-				if (!cell && !hasPlayed) {
-					hasPlayed = this.drawHit(x, y, this.iaPlayer);
-				}
-			});
-		});
+        const { x, y } = this.minmax(this.gridMap, 0, -Infinity, Infinity, true);
+        this.drawHit(x, y, this.iaPlayer);
 	}
+
+    minmax = (board, depth, alpha, beta, isMaximizing) => {
+        // Return a score when there is a winner
+        const winner = this.getBoardWinner(board);
+        if (winner === this.iaPlayer) {
+            return 10 - depth;
+        }
+        if (winner === this.humanPlayer) {
+            return depth - 10;
+        }
+        if (winner === 'tie' && this.turn === 9) {
+            return 0;
+        }
+
+        const getSimulatedScore = (x, y, player) => {
+            board[y][x] = player;
+            this.turn += 1;
+
+            const score = this.minmax(
+                board,
+                depth + 1,
+                alpha,
+                beta,
+                player === this.humanPlayer
+            );
+
+            board[y][x] = null;
+            this.turn -= 1;
+
+            return score;
+        };
+
+        // This tree is going to test every move still possible in game
+        // and suppose that the 2 players will always play there best move.
+        // The IA search for its best move by testing every combinations,
+        // and affects score to every node of the tree.
+        if (isMaximizing) {
+            // The higher is the score, the better is the move for the IA.
+            let bestIaScore = -Infinity;
+            let optimalMove;
+            for (const y of [0, 1, 2]) {
+                for (const x of [0, 1, 2]) {
+                    if (board[y][x]) {
+                        continue;
+                    }
+
+                    const score = getSimulatedScore(x, y, this.iaPlayer);
+                    if (score > bestIaScore) {
+                        bestIaScore = score;
+                        optimalMove = { x, y };
+                    }
+
+                    // clear useless branch of the algorithm tree
+                    // (optional but recommended)
+                    alpha = Math.max(alpha, score);
+                    if (beta <= alpha) {
+                        break;
+                    }
+                }
+            }
+
+            return (depth === 0) ? optimalMove : bestIaScore;
+        }
+
+        // The lower is the score, the better is the move for the player.
+        let bestHumanScore = Infinity;
+        for (const y of [0, 1, 2]) {
+            for (const x of [0, 1, 2]) {
+                if (board[y][x]) {
+                    continue;
+                }
+
+                const score = getSimulatedScore(x, y, this.humanPlayer);
+                bestHumanScore = Math.min(bestHumanScore, score);
+
+                // clear useless branch of the algorithm tree
+                // (optional but recommended)
+                beta = Math.min(beta, score);
+                if (beta <= alpha) {
+                    break;
+                }
+            }
+        }
+
+        return bestHumanScore;
+    }
 }
